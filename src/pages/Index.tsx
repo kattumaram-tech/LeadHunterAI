@@ -5,64 +5,55 @@ import { ScheduleGuide } from "@/components/ScheduleGuide";
 import { Badge } from "@/components/ui/badge";
 import { Zap, Target, Users } from "lucide-react";
 import leadHunterIcon from "@/assets/leadhunter-icon.png";
-
-// Mock data for demonstration
-const mockLeads: Lead[] = [
-  {
-    id: "1",
-    name: "Solar Tech Brasília",
-    instagram: "https://instagram.com/solartech_bsb",
-    whatsapp: "(61) 99999-1234",
-    contact: "(61) 99999-1234",
-    score: 85
-  },
-  {
-    id: "2", 
-    name: "Energia Verde DF",
-    website: "https://energiaverde.com.br",
-    whatsapp: "(61) 98888-5678",
-    contact: "(61) 98888-5678",
-    score: 78
-  },
-  {
-    id: "3",
-    name: "EcoSolar Consultoria",
-    instagram: "https://instagram.com/ecosolar_consultoria",
-    whatsapp: "(61) 97777-9012",
-    contact: "(61) 97777-9012",
-    score: 92
-  },
-  {
-    id: "4",
-    name: "Sustenta Solar",
-    website: "https://sustentasolar.com.br",
-    whatsapp: "(61) 96666-3456",
-    contact: "(61) 96666-3456",
-    score: 73
-  }
-];
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const { toast } = useToast();
 
   const handleFormSubmit = async (data: LeadConfigData) => {
     setIsLoading(true);
     setShowResults(false);
-    
-    // Simulate API call to Gemini
-    setTimeout(() => {
-      // Filter and customize mock data based on the form
-      const filteredLeads = mockLeads.map(lead => ({
-        ...lead,
-        name: lead.name.replace(/Solar|Energia|Eco/, data.niche.split(' ')[0] || 'Solar')
-      })).slice(0, Math.min(data.quantity, mockLeads.length));
-      
-      setLeads(filteredLeads);
+    setLeads([]);
+
+    try {
+      const response = await fetch("/api/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Erro desconhecido no servidor' }));
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      const resultLeads: Lead[] = await response.json();
+      setLeads(resultLeads);
       setShowResults(true);
+
+      if (resultLeads.length === 0) {
+        toast({
+          title: "Nenhum lead encontrado",
+          description: "Tente ajustar seus critérios de busca para melhores resultados.",
+          variant: "destructive",
+        });
+      }
+
+    } catch (error) {
+      console.error("Failed to fetch leads:", error);
+      toast({
+        title: "Ocorreu um erro!",
+        description: error instanceof Error ? error.message : "Não foi possível buscar os leads. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 3000);
+    }
   };
 
   return (
