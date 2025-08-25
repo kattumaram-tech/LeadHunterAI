@@ -1,0 +1,56 @@
+# Nome do workflow
+name: Deploy LeadHunterAI to GitHub Pages
+
+# Define quando o workflow deve rodar
+on:
+  push:
+    branches: ["main"] # Roda quando há um push na branch 'main'
+  workflow_dispatch:
+
+# Permissões necessárias para a publicação no GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Define os jobs (tarefas)
+jobs:
+  # Job para construir o projeto
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 🟩
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn' # Cache para YARN, pois seu projeto o utiliza
+
+      - name: Install Dependencies 📦
+        run: yarn install --frozen-lockfile # Comando para instalar dependências com Yarn
+
+      - name: Build Project 🏗️
+        run: yarn build # Executa o script "build" do seu package.json
+
+      - name: Setup Pages 🛠️
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact 📤
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # A pasta de saída do Vite é a 'dist'
+          path: './dist'
+
+  # Job para publicar o projeto
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages 🚀
+        id: deployment
+        uses: actions/deploy-pages@v4
