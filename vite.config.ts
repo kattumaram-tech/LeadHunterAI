@@ -5,6 +5,9 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // ADICIONADO PARA O DEPLOY NO GITHUB PAGES
+  base: '/LeadHunterAI/',
+
   server: {
     host: "::",
     port: 8080,
