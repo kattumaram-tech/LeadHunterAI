@@ -1,19 +1,28 @@
 import os
 import json
+import logging
+import re
 import google.generativeai as genai
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# Load environment variables
+"""
+Backend principal do LeadHunterAI
+Para iniciar: python -m uvicorn backend.main:app --reload
+"""
+
 load_dotenv()
 
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("leadhunterai")
+
 # Configure Gemini API
-try:
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-except KeyError:
-    raise RuntimeError("GEMINI_API_KEY not found in .env file. Please create a .env file and add it.")
+if "GEMINI_API_KEY" not in os.environ:
+    raise HTTPException(status_code=500, detail="GEMINI_API_KEY não encontrada no .env. Crie o arquivo e adicione a chave.")
+genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -33,13 +42,16 @@ app.add_middleware(
 )
 
 # Pydantic models for request and response
+
 class LeadConfigRequest(BaseModel):
+    """Modelo de requisição para configuração de busca de leads."""
     niche: str
     region: str
     quantity: int
     criteria: str
 
 class Lead(BaseModel):
+    """Modelo de resposta para um lead."""
     id: str
     name: str
     instagram: str | None = None
@@ -70,8 +82,12 @@ model = genai.GenerativeModel(
     safety_settings=safety_settings
 )
 
+
 @app.post("/api/search", response_model=list[Lead])
 async def search_leads(request: LeadConfigRequest):
+    """
+    Rota para buscar leads usando o modelo Gemini.
+    """
     prompt = f"""
     Aja como um especialista em prospecção de clientes e geração de leads B2B.
 
@@ -107,19 +123,29 @@ async def search_leads(request: LeadConfigRequest):
 
     try:
         response = model.generate_content(prompt)
-        # Extrair e validar o JSON da resposta
-        parsed_response = json.loads(response.text)
+        # Tenta extrair JSON válido da resposta
+        text = response.text
+        match = re.search(r'\{[\s\S]*\}', text)
+        if not match:
+            logger.error(f"Resposta do Gemini não contém JSON: {text}")
+            raise HTTPException(status_code=500, detail="Resposta do Gemini não contém JSON válido.")
+        json_str = match.group(0)
+        try:
+            parsed_response = json.loads(json_str)
+        except Exception as je:
+            logger.error(f"Falha ao parsear JSON: {je} | Resposta: {json_str}")
+            raise HTTPException(status_code=500, detail="Falha ao parsear JSON da resposta do Gemini.")
         leads_data = parsed_response.get("leads", [])
-        
         # Validar com Pydantic
         validated_leads = [Lead(**lead) for lead in leads_data]
         return validated_leads
-
     except Exception as e:
-        print(f"Error generating content or parsing JSON: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate leads from Gemini: {e}")
+        logger.error(f"Erro ao gerar conteúdo ou validar leads: {e}")
+        raise HTTPException(status_code=500, detail=f"Falha ao gerar leads do Gemini: {e}")
+
 
 @app.get("/")
 def read_root():
+    """Rota raiz para verificação de status do backend."""
     return {"message": "LeadHunterAI Backend is running"}
 

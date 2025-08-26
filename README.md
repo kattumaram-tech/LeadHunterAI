@@ -1,73 +1,119 @@
-# Welcome to your Lovable project
+# LeadHunterAI
 
-## Project info
+LeadHunterAI é uma aplicação full-stack que utiliza a Inteligência Artificial do Google Gemini para encontrar leads de negócios (clientes potenciais) com base em critérios definidos pelo usuário, como nicho, região e nível de presença digital.
 
-**URL**: https://lovable.dev/projects/0eaca65c-4da9-4250-87dc-72185e908164
+![LeadHunterAI Screenshot](https://i.imgur.com/rS42y4p.png)
 
-## How can I edit this code?
+## ✨ Funcionalidades
 
-There are several ways of editing your application.
+- **Busca Inteligente:** Define um nicho, região e quantidade de leads para a IA buscar.
+- **Critérios de Qualificação:** Especifica critérios (em linguagem natural) para encontrar leads com baixa presença digital.
+- **Resultados Detalhados:** Recebe uma lista de leads com nome, informações de contato, links (site, Instagram) e um score de qualificação.
+- **Interface Moderna:** Interface de usuário limpa e reativa construída com as tecnologias mais recentes.
 
-**Use Lovable**
+## 🚀 Stack de Tecnologias
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/0eaca65c-4da9-4250-87dc-72185e908164) and start prompting.
+O projeto é dividido em duas partes principais: o frontend e o backend.
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Frontend:**
+  - **Framework:** React com Vite
+  - **Linguagem:** TypeScript
+  - **Estilização:** Tailwind CSS
+  - **Componentes UI:** shadcn-ui
 
-**Use your preferred IDE**
+- **Backend:**
+  - **Framework:** FastAPI
+  - **Linguagem:** Python
+  - **Servidor:** Uvicorn
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- **Inteligência Artificial:**
+  - **API:** Google Gemini Pro
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 📋 Pré-requisitos
 
-Follow these steps:
+Antes de começar, garanta que você tem os seguintes softwares instalados:
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+- [Node.js](https://nodejs.org/en/) (versão 18 ou superior)
+- [Python](https://www.python.org/downloads/) (versão 3.9 ou superior)
+- Um gerenciador de pacotes para o Node, como `npm` (incluso no Node.js) ou `bun`.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## 🔑 Configuração da API
 
-# Step 3: Install the necessary dependencies.
-npm i
+O projeto requer uma chave de API do Google Gemini.
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+1.  Acesse o [Google AI Studio](https://aistudio.google.com/app/apikey) para gerar sua chave.
+2.  Copie a chave gerada.
+
+## ⚙️ Instalação e Execução
+
+Siga os passos abaixo para configurar e executar o projeto em seu ambiente local.
+
+**1. Clone o Repositório**
+
+```bash
+git clone https://github.com/seu-usuario/LeadHunterAI.git
+cd LeadHunterAI
 ```
 
-**Edit a file directly in GitHub**
+**2. Configure o Backend**
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+# Navegue até a pasta do backend
+cd backend
 
-**Use GitHub Codespaces**
+# Crie e ative um ambiente virtual (recomendado)
+python -m venv .venv
+# No Windows:
+.venv\Scripts\activate
+# No macOS/Linux:
+source .venv/bin/activate
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+# Instale as dependências do Python
+pip install -r requirements.txt
 
-## What technologies are used for this project?
+# Crie o arquivo de ambiente
+# (Copie o .env.example para .env e adicione sua chave da API)
+copy .env.example .env
+# ou no macOS/Linux: cp .env.example .env
 
-This project is built with:
+# Abra o arquivo .env e cole sua chave da API do Gemini:
+GEMINI_API_KEY="SUA_CHAVE_AQUI"
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+**3. Configure o Frontend**
 
-## How can I deploy this project?
+```bash
+# Volte para a raiz do projeto
+cd ..
 
-Simply open [Lovable](https://lovable.dev/projects/0eaca65c-4da9-4250-87dc-72185e908164) and click on Share -> Publish.
+# Instale as dependências do Node.js
+npm install
+```
 
-## Can I connect a custom domain to my Lovable project?
+**4. Execute a Aplicação**
 
-Yes, you can!
+Você precisará de dois terminais abertos: um para o backend e outro para o frontend.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+- **Terminal 1: Iniciar o Backend**
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+```bash
+# Navegue até a pasta do backend e ative o ambiente virtual se não estiver ativo
+cd backend
+.venv\Scripts\activate
+
+# Inicie o servidor FastAPI
+python -m uvicorn main:app --reload
+
+# O backend estará rodando em http://127.0.0.1:8000
+```
+
+- **Terminal 2: Iniciar o Frontend**
+
+```bash
+# Na raiz do projeto, execute o comando para desenvolvimento local
+npm run dev:local
+
+# O frontend estará acessível em http://localhost:8080
+```
+
+Agora, você pode abrir `http://localhost:8080` em seu navegador para usar o LeadHunterAI.

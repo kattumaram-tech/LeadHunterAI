@@ -1,32 +1,32 @@
-# Gemini Backend Integration Plan
+# Arquitetura e Integração com Gemini
 
-This document outlines the plan to integrate a Python backend with the LeadHunterAI frontend.
+Este documento descreve a arquitetura do backend e como ele se integra com a API do Google Gemini para o projeto LeadHunterAI.
 
 ## 1. Backend (Python & FastAPI)
 
-A new `backend` directory will be created.
+O diretório `backend` contém uma aplicação FastAPI que serve como a interface entre o frontend e a API do Gemini.
 
-### Dependencies
+### Dependências
 
-The backend will require the following Python packages, which will be listed in `backend/requirements.txt`:
-- `fastapi`: For creating the web server.
-- `uvicorn`: To run the FastAPI server.
-- `python-dotenv`: To manage environment variables (for the API key).
-- `google-generativeai`: The official Google library for the Gemini API.
-- `fastapi-cors`: To handle Cross-Origin Resource Sharing (CORS).
+As dependências do backend estão listadas no arquivo `backend/requirements.txt`:
+- `fastapi`: Para a criação do servidor web.
+- `uvicorn`: Para executar o servidor FastAPI.
+- `python-dotenv`: Para gerenciar as variáveis de ambiente (chave da API).
+- `google-generativeai`: A biblioteca oficial do Google para a API Gemini.
+- `fastapi-cors`: Para lidar com o Cross-Origin Resource Sharing (CORS).
 
-### Environment Variables
+### Variáveis de Ambiente
 
-The backend will require a `.env` file with the following variable:
+O backend requer um arquivo `.env` no diretório `backend` com a seguinte variável:
 ```
-GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+GEMINI_API_KEY="SUA_CHAVE_API_DO_GEMINI"
 ```
 
 ### API Endpoint
 
 - **Endpoint:** `/api/search`
-- **Method:** `POST`
-- **Request Body:**
+- **Método:** `POST`
+- **Corpo da Requisição (Request Body):**
   ```json
   {
     "niche": "string",
@@ -35,45 +35,80 @@ GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
     "criteria": "string"
   }
   ```
-- **Success Response (200):**
+- **Resposta de Sucesso (200):**
   ```json
   [
     {
       "id": "string",
       "name": "string",
-      "instagram": "string (optional)",
-      "website": "string (optional)",
-      "whatsapp": "string (optional)",
+      "instagram": "string (opcional)",
+      "website": "string (opcional)",
+      "whatsapp": "string (opcional)",
       "contact": "string",
       "score": "integer"
     }
   ]
   ```
-- **Error Response (500):**
+- **Resposta de Erro (500):**
   ```json
   {
-    "detail": "Error message"
+    "detail": "Mensagem de erro"
   }
   ```
 
-### Prompt Engineering
+### Engenharia de Prompt
 
-The backend will construct a detailed prompt for the Gemini API, instructing it to act as a lead generation specialist. The prompt will ask for a JSON array of leads based on the provided niche, region, and criteria.
+O backend constrói um prompt detalhado para o modelo `gemini-1.5-flash`, instruindo-o a atuar como um especialista em geração de leads. O prompt solicita um array JSON de leads com base no nicho, região e critérios fornecidos pelo usuário.
+
+O prompt utilizado é:
+```python
+f"""
+Aja como um especialista em prospecção de clientes e geração de leads B2B.
+
+Sua tarefa é encontrar {request.quantity} empresas ou profissionais do nicho de '{request.niche}' na região de '{request.region}'.
+
+Os leads ideais são aqueles com baixa presença digital, conforme os seguintes critérios: {request.criteria}.
+
+Para cada lead, forneça as seguintes informações em um formato JSON aninhado e válido:
+- id: um uuid v4 para identificar o lead.
+- name: O nome da empresa/profissional.
+- instagram: O link do perfil do Instagram (se encontrar).
+- website: O link do website (se encontrar).
+- whatsapp: O número do WhatsApp para contato (se encontrar).
+- contact: Um número de telefone ou email de contato (obrigatório).
+- score: Uma pontuação de 0 a 100 que representa o quão bem o lead se encaixa nos critérios de 'baixa presença digital'. Leads com pontuação mais alta são mais promissores.
+
+O resultado final deve ser um único array JSON chamado 'leads' contendo os objetos de cada lead.
+Exemplo de formato de saída:
+{{
+    "leads": [
+        {{
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "name": "Exemplo de Empresa",
+            "instagram": "https://instagram.com/exemplo",
+            "website": "https://exemplo.com",
+            "whatsapp": "+5561999998888",
+            "contact": "contato@exemplo.com",
+            "score": 85
+        }}
+    ]
+}}
+"""
+```
 
 ## 2. Frontend (React & Vite)
 
-### API Integration
+### Integração com a API
 
-- The `handleFormSubmit` function in `src/pages/Index.tsx` will be updated to send a `POST` request to the `/api/search` endpoint using `fetch`.
-- The mock `setTimeout` will be removed.
-- The component state (`leads`, `isLoading`, `showResults`) will be updated based on the response from the backend.
+- A função `handleFormSubmit` em `src/pages/Index.tsx` envia uma requisição `POST` para o endpoint `/api/search` utilizando `fetch`.
+- O estado do componente (`leads`, `isLoading`, `showResults`) é atualizado com base na resposta do backend.
 
-### Development Server Proxy
+### Proxy do Servidor de Desenvolvimento
 
-- The `vite.config.ts` file will be modified to include a server proxy. This will redirect any requests made to `/api` from the frontend development server (e.g., `localhost:8080`) to the backend server (`localhost:8000`). This avoids CORS problems during development.
+- O arquivo `vite.config.ts` foi modificado para incluir um proxy de servidor. Isso redireciona qualquer requisição feita para `/api` do servidor de desenvolvimento do frontend (ex: `localhost:8080`) para o servidor do backend (`localhost:8000`), evitando problemas de CORS durante o desenvolvimento.
 
 ```typescript
-// vite.config.ts addition
+// Adicionado em vite.config.ts
 server: {
   host: "::",
   port: 8080,
@@ -86,9 +121,14 @@ server: {
 },
 ```
 
-## 3. Execution Steps
+## 3. Desenvolvimento Local
 
-1.  Create the `backend` directory and all associated files (`main.py`, `requirements.txt`, `.env.example`).
-2.  Implement the FastAPI server and the `/api/search` endpoint logic.
-3.  Modify `vite.config.ts` to add the proxy.
-4.  Update `src/pages/Index.tsx` to call the new backend API.
+Para executar o projeto localmente, é necessário usar o arquivo `vite.config.mts`, que é uma cópia do `vite.config.ts` sem a propriedade `base`. A propriedade `base` é usada para o deploy no GitHub Pages e causa problemas localmente.
+
+Use o seguinte comando para iniciar o frontend localmente:
+
+```bash
+npm run dev:local
+```
+
+Este comando inicia o servidor de desenvolvimento Vite usando o arquivo de configuração correto para o ambiente local.
