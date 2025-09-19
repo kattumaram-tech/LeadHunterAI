@@ -2,16 +2,17 @@ import { useState } from "react";
 import { LeadConfigForm, type LeadConfigData } from "@/components/LeadConfigForm";
 import { LeadResults, type Lead } from "@/components/LeadResults";
 import { ScheduleGuide } from "@/components/ScheduleGuide";
-import { Badge } from "@/components/ui/badge";
 import { Zap, Target, Users } from "lucide-react";
-import leadHunterIcon from "@/assets/leadhunter-icon.png";
 import { useToast } from "@/hooks/use-toast";
+import { Layout } from "@/components/Layout";
+import { useAuth } from "@/context/AuthContext";
 
 const Index = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const { toast } = useToast();
+  const { token } = useAuth();
 
   const handleFormSubmit = async (data: LeadConfigData) => {
     setIsLoading(true);
@@ -23,6 +24,7 @@ const Index = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(data),
       });
@@ -57,30 +59,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
-      {/* Header */}
-      <header className="w-full border-b border-border/40 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img 
-                src={leadHunterIcon} 
-                alt="LeadHunterAI" 
-                className="w-10 h-10 rounded-xl shadow-soft"
-              />
-              <div>
-                <h1 className="text-xl font-bold text-foreground">LeadHunterAI</h1>
-                <p className="text-sm text-muted-foreground">Sua IA caçadora de clientes</p>
-              </div>
-            </div>
-            <Badge variant="outline" className="hidden sm:flex items-center gap-2">
-              <Zap className="w-3 h-3" />
-              Powered by Gemini AI
-            </Badge>
-          </div>
-        </div>
-      </header>
-
+    <Layout>
       <main className="container mx-auto px-4 py-8 space-y-12">
         {/* Hero Section */}
         <section className="text-center space-y-6">
@@ -128,26 +107,7 @@ const Index = () => {
           <ScheduleGuide />
         </section>
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-border/40 bg-background/50 backdrop-blur-sm mt-16">
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <img 
-                src={leadHunterIcon} 
-                alt="LeadHunterAI" 
-                className="w-6 h-6 rounded"
-              />
-              <span className="font-semibold text-foreground">LeadHunterAI</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Transformando prospecção em ciência com Inteligência Artificial
-            </p>
-          </div>
-        </div>
-      </footer>
-    </div>
+    </Layout>
   );
 };
 

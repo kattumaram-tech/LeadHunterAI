@@ -9,6 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useToast } from '@/hooks/use-toast';
 import { Link, useNavigate } from 'react-router-dom';
 import { ContactForm } from '@/components/ContactForm';
+import { useAuth } from '@/context/AuthContext';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Email inválido.' }),
@@ -18,6 +19,7 @@ const formSchema = z.object({
 export const LoginPage = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -28,24 +30,23 @@ export const LoginPage = () => {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
     try {
+      const formData = new FormData();
+      formData.append('username', values.email);
+      formData.append('password', values.password);
+
       const response = await fetch('/api/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
+        body: formData,
       });
 
       if (!response.ok) {
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Falha no login.');
-        } else {
-            throw new Error(`Erro no servidor: ${response.status} ${response.statusText}`);
-        }
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Falha no login.');
       }
 
-      // Salvar estado de autenticação e redirecionar
-      localStorage.setItem('isAuthenticated', 'true');
+      const data = await response.json();
+      login(data.access_token);
+      
       navigate('/');
       toast({ title: 'Login bem-sucedido!', description: 'Bem-vindo de volta.' });
 

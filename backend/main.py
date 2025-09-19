@@ -5,23 +5,31 @@ import re
 import sqlite3
 import smtplib
 from email.mime.text import MIMEText
+from datetime import datetime, timedelta, timezone
+from typing import List, Optional
+
 import google.generativeai as genai
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from dotenv import load_dotenv
 from passlib.context import CryptContext
 from pathlib import Path
+from jose import JWTError, jwt
 
-"""
-Backend principal do LeadHunterAI
-Para iniciar: python -m uvicorn backend.main:app --reload
-"""
-
-# Carrega o .env a partir do diretório do script para evitar problemas de caminho
+# --- Carregamento de Configurações ---
 current_dir = Path(__file__).parent
 env_path = current_dir / '.env'
 load_dotenv(dotenv_path=env_path)
+
+# --- Constantes de Segurança ---
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 horas
+
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY não configurada no arquivo .env. A aplicação não pode iniciar.")
 
 # --- Configuração do Banco de Dados ---
 DATABASE_URL = "database.db"
@@ -35,11 +43,24 @@ def create_tables():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        # Tabela de Usuários com campos de perfil
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 email TEXT NOT NULL UNIQUE,
-                hashed_password TEXT NOT NULL
+                hashed_password TEXT NOT NULL,
+                company_name TEXT,
+                company_services TEXT
+            )
+        """)
+        # Tabela de Histórico de Leads
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS lead_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                lead_data TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id)
             )
         """)
         conn.commit()
@@ -48,8 +69,61 @@ def create_tables():
         print(f"Erro no banco de dados ao criar tabelas: {e}")
         raise
 
-# --- Configuração de Autenticação ---
+# --- Configuração de Autenticação e Segurança ---
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
+
+# --- Modelos Pydantic ---
+
+class User(BaseModel):
+    id: int
+    email: EmailStr
+    company_name: Optional[str] = None
+    company_services: Optional[str] = None
+
+class UserInDB(User):
+    hashed_password: str
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+
+class ProfileUpdate(BaseModel):
+    company_name: Optional[str] = None
+    company_services: Optional[str] = None
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class ContactRequest(BaseModel):
+    name: str
+    email: EmailStr
+    phone: Optional[str] = None
+    message: str
+
+class Lead(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra='ignore')
+
+    id: str = Field(alias="id")
+    name: str = Field(alias="name")
+    instagram: Optional[str] = None
+    website: Optional[str] = None
+    whatsapp: Optional[str] = None
+    contact: str = Field(alias="contact")
+    score: int = Field(alias="score")
+
+class LeadConfigRequest(
+    BaseModel
+):
+    niche: str
+    region: str
+    quantity: int
+    criteria: str
+    include_keywords: Optional[str] = None
+    exclude_keywords: Optional[str] = None
+
+# --- Funções de Segurança ---
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -57,116 +131,229 @@ def verify_password(plain_password, hashed_password):
 def get_password_hash(password):
     return pwd_context.hash(password)
 
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def get_user(conn: sqlite3.Connection, email: str) -> Optional[UserInDB]:
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
+    user_row = cursor.fetchone()
+    if user_row:
+        return UserInDB(**user_row)
+    return None
+
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    conn = get_db_connection()
+    user = get_user(conn, email=email)
+    conn.close()
+    
+    if user is None:
+        raise credentials_exception
+    return User(**user.model_dump())
+
 # --- Configuração do App FastAPI ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("leadhunterai")
-
 app = FastAPI()
-
-# Criar tabelas na inicialização
 create_tables()
 
-# Configurar CORS
-origins = [
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
-]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["http://localhost:8080", "http://127.0.0.1:8080"],
+    allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
 )
 
 # --- Configuração da API Gemini ---
 try:
     if "GEMINI_API_KEY" not in os.environ:
-        logger.warning("GEMINI_API_KEY não encontrada no .env. A busca de leads não funcionará.")
+        logger.warning("GEMINI_API_KEY não encontrada no .env.")
     genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 except Exception as e:
     logger.error(f"Falha ao configurar a API Gemini: {e}")
 
-# --- Modelos Pydantic ---
+# --- Endpoints ---
 
-# Modelos de Autenticação
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-# Modelo de Contato
-class ContactRequest(BaseModel):
-    name: str
-    email: EmailStr
-    phone: str | None = None
-    message: str
-
-# Modelos de Busca de Leads
-class LeadConfigRequest(BaseModel):
-    niche: str
-    region: str
-    quantity: int
-    criteria: str
-    include_keywords: str | None = None
-    exclude_keywords: str | None = None
-
-class Lead(BaseModel):
-    id: str
-    name: str
-    instagram: str | None = None
-    website: str | None = None
-    whatsapp: str | None = None
-    contact: str
-    score: int
-
-# --- Endpoints de Autenticação ---
+@app.post("/api/login", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    conn = get_db_connection()
+    user = get_user(conn, form_data.username)
+    conn.close()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/api/register")
 def register_user(user: UserCreate):
     conn = get_db_connection()
     try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT email FROM users WHERE email = ?", (user.email,))
-        if cursor.fetchone():
+        if get_user(conn, user.email):
             raise HTTPException(status_code=400, detail="Email já registrado")
-        
         hashed_password = get_password_hash(user.password)
-        cursor.execute(
-            "INSERT INTO users (email, hashed_password) VALUES (?, ?)",
-            (user.email, hashed_password)
-        )
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO users (email, hashed_password) VALUES (?, ?)", (user.email, hashed_password))
         conn.commit()
-    except sqlite3.Error as e:
-        logger.error(f"Erro de banco de dados ao registrar: {e}")
-        raise HTTPException(status_code=500, detail="Erro interno do servidor.")
     finally:
         conn.close()
     return {"message": "Usuário registrado com sucesso"}
 
-@app.post("/api/login")
-def login_user(user: UserLogin):
+@app.get("/api/profile", response_model=User)
+async def read_user_profile(current_user: User = Depends(get_current_user)):
+    return current_user
+
+@app.put("/api/profile", response_model=User)
+async def update_user_profile(profile_data: ProfileUpdate, current_user: User = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT hashed_password FROM users WHERE email = ?", (user.email,))
-        db_user = cursor.fetchone()
-    except sqlite3.Error as e:
-        logger.error(f"Erro de banco de dados ao fazer login: {e}")
-        raise HTTPException(status_code=500, detail="Erro interno do servidor.")
+        cursor.execute(
+            "UPDATE users SET company_name = ?, company_services = ? WHERE id = ?",
+            (profile_data.company_name, profile_data.company_services, current_user.id)
+        )
+        conn.commit()
     finally:
         conn.close()
-    
-    if not db_user or not verify_password(user.password, db_user["hashed_password"]):
-        raise HTTPException(status_code=401, detail="Email ou senha incorretos")
+    # Retorna os dados atualizados
+    updated_user_data = current_user.model_dump()
+    updated_user_data.update(profile_data.model_dump())
+    return User(**updated_user_data)
+
+@app.get("/api/history", response_model=List[Lead])
+async def get_user_history(current_user: User = Depends(get_current_user)):
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT lead_data FROM lead_history WHERE user_id = ? ORDER BY created_at DESC", (current_user.id,))
+        history_rows = cursor.fetchall()
+        leads = [Lead(**json.loads(row['lead_data'])) for row in history_rows]
+        return leads
+    finally:
+        conn.close()
+
+@app.post("/api/search", response_model=List[Lead])
+async def search_leads(request: LeadConfigRequest, current_user: User = Depends(get_current_user)):
+    # Lógica de busca aprimorada
+    conn = get_db_connection()
+    try:
+        # 1. Buscar histórico de leads para evitar repetição
+        cursor = conn.cursor()
+        cursor.execute("SELECT lead_data FROM lead_history WHERE user_id = ?", (current_user.id,))
+        history_rows = cursor.fetchall()
+        previous_leads = [json.loads(row['lead_data']) for row in history_rows]
+        previous_leads_str = json.dumps(previous_leads, indent=2)
+
+        # 2. Construir prompt dinâmico
+        prompt_parts = [
+            f"Sua tarefa é encontrar {request.quantity} empresas ou profissionais do nicho de '{request.niche}' na região de '{request.region}'.",
+            f"Os leads ideais são aqueles com baixa presença digital, conforme os seguintes critérios: {request.criteria}."
+        ]
+        if current_user.company_name and current_user.company_services:
+            prompt_parts.append(f"CONTEXTO DO USUÁRIO: A busca é para a empresa '{current_user.company_name}', que oferece os seguintes serviços: '{current_user.company_services}'. Use este contexto para encontrar leads que sejam clientes ideais.")
         
-    return {"message": "Login bem-sucedido"}
+        prompt_parts.append("Seja extremamente rigoroso na sua busca. Priorize encontrar um contato direto (e-mail ou telefone) que não seja genérico.")
 
-# --- Endpoint de Contato ---
+        if request.include_keywords:
+            prompt_parts.append(f"A busca DEVE incluir menções a: '{request.include_keywords}'.")
+        if request.exclude_keywords:
+            prompt_parts.append(f"A busca DEVE EXCLUIR menções a: '{request.exclude_keywords}'.")
+        
+        if previous_leads:
+            prompt_parts.append(f"IMPORTANTE: Os leads a seguir já foram encontrados para este usuário. NÃO os inclua na nova resposta: \n{previous_leads_str}")
 
+        task_description = "\n".join(prompt_parts)
+        prompt = f"""
+Aja como um especialista em prospecção de clientes e geração de leads B2B, com foco em alta precisão.
+
+**INSTRUÇÕES CRÍTICAS DE FORMATO:**
+1. Você DEVE retornar APENAS um objeto JSON.
+2. Este objeto JSON DEVE conter uma ÚNICA chave de nível superior chamada "leads".
+3. O valor da chave "leads" DEVE ser um ARRAY de objetos.
+4. CADA objeto dentro do array "leads" DEVE conter as SEGUINTES CHAVES EXATAS (em inglês, minúsculas):
+   - "id" (string, UUID v4)
+   - "name" (string)
+   - "instagram" (string, URL ou null)
+   - "website" (string, URL ou null)
+   - "whatsapp" (string, número de telefone ou null)
+   - "contact" (string, número de telefone ou email, OBRIGATÓRIO)
+   - "score" (inteiro de 0 a 100)
+5. NÃO use chaves em português (ex: "nome", "contato", "pontuacao").
+6. NÃO inclua nenhum texto, explicação, formatação extra ou caracteres antes ou depois do JSON.
+7. SIGA O EXEMPLO DE SAÍDA RIGOROSAMENTE.
+
+{task_description}
+
+Exemplo de formato de saída (SIGA ESTE EXEMPLO RIGOROSAMENTE):
+{{
+    "leads": [
+        {{
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "name": "Exemplo de Empresa",
+            "instagram": "https://instagram.com/exemplo",
+            "website": "https://exemplo.com",
+            "whatsapp": "+5561999998888",
+            "contact": "joao.silva@exemplodireto.com",
+            "score": 90
+        }}
+    ]
+}}
+"""
+
+        # 3. Chamar a IA
+        model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+        response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
+        
+        # 4. Processar e salvar novos leads
+        parsed_response = json.loads(response.text)
+        new_leads_data = parsed_response.get("leads", [])
+        validated_leads = [Lead(**lead) for lead in new_leads_data]
+        
+        # 5. Salvar no histórico
+        now = datetime.now(timezone.utc)
+        for lead in validated_leads:
+            cursor.execute(
+                "INSERT INTO lead_history (user_id, lead_data, created_at) VALUES (?, ?, ?)",
+                (current_user.id, lead.model_dump_json(), now)
+            )
+        conn.commit()
+        return validated_leads
+
+    except Exception as e:
+        logger.error(f"Erro em /api/search: {e}")
+        # Evita expor detalhes internos da exceção ao cliente
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Falha ao gerar leads.")
+    finally:
+        conn.close()
+
+# Endpoint de contato (público)
 @app.post("/api/contact")
 def contact_request(request: ContactRequest):
     EMAIL_HOST = os.getenv("EMAIL_HOST")
@@ -210,101 +397,3 @@ def contact_request(request: ContactRequest):
     except Exception as e:
         logger.error(f"Falha ao enviar e-mail: {e}")
         raise HTTPException(status_code=500, detail="Falha ao enviar a mensagem.")
-
-
-# --- Endpoint de Busca de Leads (Protegido) ---
-
-generation_config = {
-    "temperature": 0.9,
-    "top_p": 1,
-    "top_k": 1,
-    "max_output_tokens": 8192,
-    "response_mime_type": "application/json",
-}
-
-safety_settings = [
-    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-]
-
-model = None
-if os.environ.get("GEMINI_API_KEY"):
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        generation_config=generation_config,
-        safety_settings=safety_settings
-    )
-
-@app.post("/api/search", response_model=list[Lead])
-async def search_leads(request: LeadConfigRequest):
-    if not model:
-        raise HTTPException(status_code=500, detail="API do Gemini não configurada.")
-
-    # Construção dinâmica do prompt para maior assertividade
-    prompt_parts = [
-        f"Sua tarefa é encontrar {request.quantity} empresas ou profissionais do nicho de '{request.niche}' na região de '{request.region}'.",
-        f"Os leads ideais são aqueles com baixa presença digital, conforme os seguintes critérios: {request.criteria}.",
-        "Seja extremamente rigoroso na sua busca. Priorize encontrar um contato direto (e-mail ou telefone) que não seja genérico. Verifique múltiplas fontes para garantir que a empresa se encaixa nos critérios antes de adicioná-la à lista."
-    ]
-    if request.include_keywords:
-        prompt_parts.append(f"A busca DEVE incluir empresas que mencionem ou estejam relacionadas a estas palavras-chave: '{request.include_keywords}'.")
-    if request.exclude_keywords:
-        prompt_parts.append(f"A busca DEVE EXCLUIR empresas que mencionem ou estejam relacionadas a estas palavras-chave: '{request.exclude_keywords}'.")
-
-    task_description = "\n".join(prompt_parts)
-
-    prompt = f"""
-    Aja como um especialista em prospecção de clientes e geração de leads B2B, com foco em alta precisão.
-
-    {task_description}
-
-    Para cada lead, forneça as seguintes informações em um formato JSON aninhado e válido:
-    - id: um uuid v4 para identificar o lead.
-    - name: O nome da empresa/profissional.
-    - instagram: O link do perfil do Instagram (se encontrar).
-    - website: O link do website (se encontrar).
-    - whatsapp: O número do WhatsApp para contato (se encontrar).
-    - contact: Um número de telefone ou email de contato (OBRIGATÓRIO, e deve ser o mais direto possível).
-    - score: Uma pontuação de 0 a 100 que representa o quão bem o lead se encaixa nos critérios de 'baixa presença digital'. Leads com pontuação mais alta são mais promissores. Seja crítico e conservador ao atribuir esta pontuação.
-
-    O resultado final deve ser um único array JSON chamado 'leads' contendo os objetos de cada lead. Não inclua nenhum texto ou explicação fora do JSON.
-    Exemplo de formato de saída:
-    {{
-        "leads": [
-            {{
-                "id": "123e4567-e89b-12d3-a456-426614174000",
-                "name": "Exemplo de Empresa",
-                "instagram": "https://instagram.com/exemplo",
-                "website": "https://exemplo.com",
-                "whatsapp": "+5561999998888",
-                "contact": "joao.silva@exemplodireto.com",
-                "score": 90
-            }}
-        ]
-    }}
-    """
-
-    try:
-        response = model.generate_content(prompt)
-        text = response.text
-        try:
-            parsed_response = json.loads(text)
-        except json.JSONDecodeError:
-            logger.error(f"Resposta do Gemini não é um JSON válido: {text}")
-            raise HTTPException(status_code=500, detail="Resposta do Gemini não retornou um JSON válido.")
-        
-        leads_data = parsed_response.get("leads", [])
-        validated_leads = [Lead(**lead) for lead in leads_data]
-        return validated_leads
-    except Exception as e:
-        logger.error(f"Erro ao gerar conteúdo ou validar leads: {e}")
-        # Evita expor detalhes internos da exceção ao cliente
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=500, detail=f"Falha ao gerar leads do Gemini.")
-
-@app.get("/")
-def read_root():
-    return {"message": "LeadHunterAI Backend is running"}

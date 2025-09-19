@@ -132,3 +132,60 @@ npm run dev:local
 ```
 
 Este comando inicia o servidor de desenvolvimento Vite usando o arquivo de configuração correto para o ambiente local.
+
+## 4. Automação de Documentação e Dependências
+
+Para garantir que a documentação (arquivos `README.md`) e as dependências (`requirements.txt`) estejam sempre atualizadas e consistentes, é recomendável implementar um processo de automação.
+
+### Como Funciona:
+
+Um script pode ser configurado para:
+- Atualizar o `requirements.txt` com as versões exatas das dependências Python (`pip freeze`).
+- Gerar ou atualizar o conteúdo dos arquivos `README.md` em todos os diretórios, refletindo a estrutura e funcionalidade atual do projeto.
+
+### Implementação (Exemplo de Script Python):
+
+Você pode criar um script Python na raiz do projeto (ex: `update_docs.py`) que execute essas tarefas. Este script pode ser:
+
+- **Executado manualmente:** Antes de cada commit importante ou release.
+- **Integrado a Hooks de Git:** Usando ferramentas como `pre-commit` para rodar o script automaticamente antes de cada commit.
+- **Integrado a CI/CD:** Em plataformas como GitHub Actions, GitLab CI/CD, etc., para rodar o script em cada push ou pull request.
+
+```python
+# Exemplo de script Python (update_docs.py)
+import os
+import subprocess
+
+def update_requirements():
+    print("Atualizando backend/requirements.txt...")
+    try:
+        result = subprocess.run(
+            ["pip", "freeze"],
+            capture_output=True, text=True, check=True
+        )
+        with open("backend/requirements.txt", "w") as f:
+            f.write(result.stdout)
+        print("backend/requirements.txt atualizado com sucesso.")
+    except subprocess.CalledProcessError as e:
+        print(f"Erro ao atualizar requirements.txt: {e.stderr}")
+
+def update_readme_files():
+    print("Atualizando arquivos README.md...")
+    # Aqui você adicionaria a lógica para gerar/atualizar o conteúdo de cada README.md
+    # Isso pode ser feito lendo templates, ou gerando conteúdo dinamicamente com base na estrutura do projeto.
+    # Por exemplo, para o README.md principal, você pode ter um template e preenchê-lo.
+    # Para os READMEs de diretório, você pode ter uma função que lista os arquivos e subdiretórios.
+    print("Arquivos README.md atualizados (lógica de geração precisa ser implementada aqui).")
+
+if __name__ == "__main__":
+    # Certifique-se de estar no diretório raiz do projeto ao executar este script
+    update_requirements()
+    update_readme_files()
+    print("Processo de atualização de documentação concluído.")
+```
+
+### Próximos Passos:
+
+1.  **Crie o script:** Salve o conteúdo acima em um arquivo como `update_docs.py` na raiz do seu projeto.
+2.  **Implemente a lógica de `update_readme_files()`:** A parte mais complexa é a geração dinâmica dos `README.md`. Você pode usar bibliotecas Python para manipulação de arquivos e strings para isso.
+3.  **Integre:** Escolha um método de automação (manual, hook de git, CI/CD) e configure-o para executar este script.

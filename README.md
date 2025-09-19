@@ -1,19 +1,22 @@
 # LeadHunterAI
 
-LeadHunterAI é uma aplicação full-stack que utiliza a Inteligência Artificial do Google Gemini para encontrar leads de negócios (clientes potenciais) com base em critérios definidos pelo usuário. A aplicação conta com um sistema de autenticação de usuários e um formulário para solicitação de orçamento.
+LeadHunterAI é uma aplicação full-stack que utiliza a Inteligência Artificial do Google Gemini para encontrar leads de negócios (clientes potenciais) com base em critérios definidos pelo usuário. A aplicação conta com um sistema de autenticação de usuários, gerenciamento de perfil, histórico de leads e funcionalidades de exportação.
 
 ![LeadHunterAI Screenshot](https://i.imgur.com/rS42y4p.png)
 
 ## ✨ Funcionalidades
 
-- **Autenticação de Usuários:** Sistema de registro e login para acesso à plataforma.
-- **Banco de Dados SQLite:** Armazenamento seguro de informações de usuários.
-- **Formulário de Contato:** Permite que visitantes enviem solicitações de orçamento ou acesso, com notificação por e-mail.
+- **Autenticação JWT:** Sistema de registro e login seguro baseado em JSON Web Tokens.
+- **Gerenciamento de Perfil:** Tela dedicada para o usuário inserir dados da sua empresa, que são usados para refinar a busca de leads.
+- **Histórico de Leads:** Cada usuário pode consultar e gerenciar os leads gerados em buscas anteriores.
+- **Prevenção de Repetição:** A IA é instruída a não retornar leads que já foram capturados pelo usuário.
+- **Exportação de Dados:** Exporte seus leads para formatos CSV e PDF.
 - **Busca Avançada de Leads:**
   - Define um nicho, região e quantidade de leads (até 300) para a IA buscar.
   - Especifica critérios de baixa presença digital em linguagem natural.
   - Utiliza palavras-chave para incluir ou excluir resultados, refinando a busca.
-- **Resultados Detalhados:** Recebe uma lista de leads com nome, contato e um score de qualificação gerado pela IA.
+  - A IA usa os dados do perfil da sua empresa para encontrar leads mais compatíveis.
+- **Formulário de Contato:** Permite que visitantes enviem solicitações de orçamento ou acesso, com notificação por e-mail.
 
 ## 🚀 Stack de Tecnologias
 
@@ -21,14 +24,16 @@ LeadHunterAI é uma aplicação full-stack que utiliza a Inteligência Artificia
   - **Framework:** React com Vite
   - **Linguagem:** TypeScript
   - **Roteamento:** React Router DOM
+  - **Gerenciamento de Estado:** React Context API (para autenticação)
   - **Estilização:** Tailwind CSS
   - **Componentes UI:** shadcn-ui
+  - **Exportação:** jspdf, jspdf-autotable (PDF), papaparse (CSV)
 
 - **Backend:**
   - **Framework:** FastAPI
   - **Linguagem:** Python
   - **Banco de Dados:** SQLite
-  - **Autenticação:** Passlib com Bcrypt
+  - **Autenticação:** JWT (python-jose), Passlib com Bcrypt
   - **Servidor:** Uvicorn
 
 - **Inteligência Artificial:**
@@ -77,6 +82,7 @@ copy .env.example .env
 
 **5. Preencha o arquivo `.env`** com as seguintes informações:
    - `GEMINI_API_KEY`: Sua chave da API do Google Gemini.
+   - `SECRET_KEY`: Uma chave secreta forte para assinar os tokens JWT. Você pode gerar uma com: `python -c 'import secrets; print(secrets.token_hex(32))'`
    - `EMAIL_HOST`: Endereço do seu servidor SMTP (ex: "smtp.gmail.com").
    - `EMAIL_PORT`: A porta do servidor SMTP (ex: 587).
    - `EMAIL_USERNAME`: O e-mail que fará o envio das mensagens.

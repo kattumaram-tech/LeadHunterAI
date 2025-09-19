@@ -8,6 +8,9 @@ import NotFound from "./pages/NotFound";
 import { LoginPage } from "./pages/Login";
 import { RegisterPage } from "./pages/Register";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { AuthProvider } from "./context/AuthContext";
+import { ProfilePage } from "./pages/Profile";
+import { HistoryPage } from "./pages/History";
 
 const queryClient = new QueryClient();
 
@@ -16,22 +19,26 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          {/* Rotas Públicas */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Rotas Públicas */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
 
-          {/* Rotas Protegidas */}
-          <Route path="/" element={<ProtectedRoute />}>
-            <Route path="/" element={<Index />} />
-            <Route path="/LeadHunterAI" element={<Index />} />
-          </Route>
+            {/* Rotas Protegidas */}
+            <Route path="/" element={<ProtectedRoute />}>
+              <Route path="/" element={<Index />} />
+              <Route path="/LeadHunterAI" element={<Index />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/history" element={<HistoryPage />} />
+            </Route>
 
-          {/* Rota de fallback */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+            {/* Rota de fallback */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
