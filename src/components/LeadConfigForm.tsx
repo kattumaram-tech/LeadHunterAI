@@ -5,13 +5,15 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, Target, Filter, Zap } from "lucide-react";
+import { Search, Target, Filter, Zap, PlusCircle, MinusCircle } from "lucide-react";
 
 export interface LeadConfigData {
   niche: string;
   region: string;
   quantity: number;
   criteria: string;
+  include_keywords?: string;
+  exclude_keywords?: string;
 }
 
 interface LeadConfigFormProps {
@@ -23,8 +25,10 @@ export function LeadConfigForm({ onSubmit, isLoading }: LeadConfigFormProps) {
   const [config, setConfig] = useState<LeadConfigData>({
     niche: "",
     region: "",
-    quantity: 20,
-    criteria: "poucos reels, não anuncia, alcance baixo, poucas curtidas em posts"
+    quantity: 50,
+    criteria: "poucos reels, não anuncia, alcance baixo, poucas curtidas em posts",
+    include_keywords: "",
+    exclude_keywords: "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -90,15 +94,15 @@ export function LeadConfigForm({ onSubmit, isLoading }: LeadConfigFormProps) {
             <Slider
               value={[config.quantity]}
               onValueChange={(value) => setConfig({ ...config, quantity: value[0] })}
-              min={5}
-              max={50}
-              step={5}
+              min={10}
+              max={300}
+              step={10}
               className="w-full"
             />
             <div className="flex justify-between text-xs text-muted-foreground mt-2">
-              <span>5</span>
-              <span>25</span>
-              <span>50</span>
+              <span>10</span>
+              <span>150</span>
+              <span>300</span>
             </div>
           </div>
         </div>
@@ -106,7 +110,7 @@ export function LeadConfigForm({ onSubmit, isLoading }: LeadConfigFormProps) {
         <div className="space-y-2">
           <Label htmlFor="criteria" className="text-sm font-medium flex items-center gap-2">
             <Filter className="w-4 h-4 text-brand-accent" />
-            Critérios de Filtro
+            Critérios de Baixa Presença Digital
           </Label>
           <Textarea
             id="criteria"
@@ -114,11 +118,39 @@ export function LeadConfigForm({ onSubmit, isLoading }: LeadConfigFormProps) {
             onChange={(e) => setConfig({ ...config, criteria: e.target.value })}
             placeholder="Ex: poucos reels, não anuncia, alcance baixo, poucas curtidas"
             className="bg-background/80 border-border/60 focus:border-brand-accent transition-colors min-h-[100px] resize-none"
-            rows={4}
+            rows={3}
           />
-          <p className="text-xs text-muted-foreground">
-            Descreva características que indicam baixa presença digital
-          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+                <Label htmlFor="include_keywords" className="text-sm font-medium flex items-center gap-2">
+                    <PlusCircle className="w-4 h-4 text-green-500" />
+                    Palavras-chave para Incluir
+                </Label>
+                <Input
+                    id="include_keywords"
+                    type="text"
+                    value={config.include_keywords}
+                    onChange={(e) => setConfig({ ...config, include_keywords: e.target.value })}
+                    placeholder="Ex: B2B, software, artesanal"
+                    className="bg-background/80 border-border/60 focus:border-brand-accent transition-colors"
+                />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="exclude_keywords" className="text-sm font-medium flex items-center gap-2">
+                    <MinusCircle className="w-4 h-4 text-red-500" />
+                    Palavras-chave para Excluir
+                </Label>
+                <Input
+                    id="exclude_keywords"
+                    type="text"
+                    value={config.exclude_keywords}
+                    onChange={(e) => setConfig({ ...config, exclude_keywords: e.target.value })}
+                    placeholder="Ex: B2C, governo, grande porte"
+                    className="bg-background/80 border-border/60 focus:border-brand-accent transition-colors"
+                />
+            </div>
         </div>
 
         <Button

@@ -1,3 +1,12 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build artifacts
+dist/
+dist-ssr/
+
 # Logs
 logs
 *.log
@@ -7,19 +16,29 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-.venv
-node_modules
-dist
-dist-ssr
-*.local
+# OS-specific
+.DS_Store
 
 # Editor directories and files
+.idea/
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+
+# Project-specific
+backend/database.db

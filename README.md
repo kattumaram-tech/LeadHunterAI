@@ -1,52 +1,48 @@
 # LeadHunterAI
 
-LeadHunterAI é uma aplicação full-stack que utiliza a Inteligência Artificial do Google Gemini para encontrar leads de negócios (clientes potenciais) com base em critérios definidos pelo usuário, como nicho, região e nível de presença digital.
+LeadHunterAI é uma aplicação full-stack que utiliza a Inteligência Artificial do Google Gemini para encontrar leads de negócios (clientes potenciais) com base em critérios definidos pelo usuário. A aplicação conta com um sistema de autenticação de usuários e um formulário para solicitação de orçamento.
 
 ![LeadHunterAI Screenshot](https://i.imgur.com/rS42y4p.png)
 
 ## ✨ Funcionalidades
 
-- **Busca Inteligente:** Define um nicho, região e quantidade de leads para a IA buscar.
-- **Critérios de Qualificação:** Especifica critérios (em linguagem natural) para encontrar leads com baixa presença digital.
-- **Resultados Detalhados:** Recebe uma lista de leads com nome, informações de contato, links (site, Instagram) e um score de qualificação.
-- **Interface Moderna:** Interface de usuário limpa e reativa construída com as tecnologias mais recentes.
+- **Autenticação de Usuários:** Sistema de registro e login para acesso à plataforma.
+- **Banco de Dados SQLite:** Armazenamento seguro de informações de usuários.
+- **Formulário de Contato:** Permite que visitantes enviem solicitações de orçamento ou acesso, com notificação por e-mail.
+- **Busca Avançada de Leads:**
+  - Define um nicho, região e quantidade de leads (até 300) para a IA buscar.
+  - Especifica critérios de baixa presença digital em linguagem natural.
+  - Utiliza palavras-chave para incluir ou excluir resultados, refinando a busca.
+- **Resultados Detalhados:** Recebe uma lista de leads com nome, contato e um score de qualificação gerado pela IA.
 
 ## 🚀 Stack de Tecnologias
-
-O projeto é dividido em duas partes principais: o frontend e o backend.
 
 - **Frontend:**
   - **Framework:** React com Vite
   - **Linguagem:** TypeScript
+  - **Roteamento:** React Router DOM
   - **Estilização:** Tailwind CSS
   - **Componentes UI:** shadcn-ui
 
 - **Backend:**
   - **Framework:** FastAPI
   - **Linguagem:** Python
+  - **Banco de Dados:** SQLite
+  - **Autenticação:** Passlib com Bcrypt
   - **Servidor:** Uvicorn
 
 - **Inteligência Artificial:**
-  - **API:** Google Gemini Pro
+  - **API:** Google Gemini
 
 ## 📋 Pré-requisitos
 
-Antes de começar, garanta que você tem os seguintes softwares instalados:
-
 - [Node.js](https://nodejs.org/en/) (versão 18 ou superior)
 - [Python](https://www.python.org/downloads/) (versão 3.9 ou superior)
-- Um gerenciador de pacotes para o Node, como `npm` (incluso no Node.js) ou `bun`.
-
-## 🔑 Configuração da API
-
-O projeto requer uma chave de API do Google Gemini.
-
-1.  Acesse o [Google AI Studio](https://aistudio.google.com/app/apikey) para gerar sua chave.
-2.  Copie a chave gerada.
+- `npm` (incluso no Node.js)
 
 ## ⚙️ Instalação e Execução
 
-Siga os passos abaixo para configurar e executar o projeto em seu ambiente local.
+Siga os passos abaixo para configurar e executar o projeto localmente.
 
 **1. Clone o Repositório**
 
@@ -57,28 +53,34 @@ cd LeadHunterAI
 
 **2. Configure o Backend**
 
+O backend gerencia os usuários, a busca com IA e o envio de e-mails.
+
 ```bash
-# Navegue até a pasta do backend
+# 1. Navegue até a pasta do backend
 cd backend
 
-# Crie e ative um ambiente virtual (recomendado)
+# 2. Crie e ative um ambiente virtual (recomendado)
 python -m venv .venv
 # No Windows:
 .venv\Scripts\activate
 # No macOS/Linux:
 source .venv/bin/activate
 
-# Instale as dependências do Python
+# 3. Instale as dependências do Python
 pip install -r requirements.txt
 
-# Crie o arquivo de ambiente
-# (Copie o .env.example para .env e adicione sua chave da API)
+# 4. Crie e configure o arquivo de ambiente
+# Copie o .env.example para .env
 copy .env.example .env
 # ou no macOS/Linux: cp .env.example .env
-
-# Abra o arquivo .env e cole sua chave da API do Gemini:
-GEMINI_API_KEY="SUA_CHAVE_AQUI"
 ```
+
+**5. Preencha o arquivo `.env`** com as seguintes informações:
+   - `GEMINI_API_KEY`: Sua chave da API do Google Gemini.
+   - `EMAIL_HOST`: Endereço do seu servidor SMTP (ex: "smtp.gmail.com").
+   - `EMAIL_PORT`: A porta do servidor SMTP (ex: 587).
+   - `EMAIL_USERNAME`: O e-mail que fará o envio das mensagens.
+   - `EMAIL_PASSWORD`: A senha de aplicação do seu e-mail. **(Importante: use uma senha de app, não sua senha principal)**.
 
 **3. Configure o Frontend**
 
@@ -92,19 +94,16 @@ npm install
 
 **4. Execute a Aplicação**
 
-Você precisará de dois terminais abertos: um para o backend e outro para o frontend.
+Você precisará de **dois terminais** abertos simultaneamente.
 
 - **Terminal 1: Iniciar o Backend**
 
 ```bash
-# Navegue até a pasta do backend e ative o ambiente virtual se não estiver ativo
-cd backend
-.venv\Scripts\activate
-
-# Inicie o servidor FastAPI
-python -m uvicorn main:app --reload
+# A partir da raiz do projeto, inicie o servidor FastAPI
+python -m uvicorn backend.main:app --reload
 
 # O backend estará rodando em http://127.0.0.1:8000
+# O banco de dados 'database.db' será criado automaticamente.
 ```
 
 - **Terminal 2: Iniciar o Frontend**
@@ -116,4 +115,4 @@ npm run dev:local
 # O frontend estará acessível em http://localhost:8080
 ```
 
-Agora, você pode abrir `http://localhost:8080` em seu navegador para usar o LeadHunterAI.
+Agora, você pode abrir `http://localhost:8080` em seu navegador. Você será direcionado para a tela de login, onde poderá criar uma conta ou solicitar um orçamento.
